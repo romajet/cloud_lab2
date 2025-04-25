@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+service GorodaGame {
+  rpc JoinGame (stream ClientMessage) returns (stream ServerMessage);
+}
+
+message ClientMessage {
+  string player_name = 1;
+  string city = 2;
+}
+
+message ServerMessage {
+  string message = 1;
+  string status = 2;
+  string next_letter = 3;
+  bool is_turn = 4;
+}
