@@ -9,7 +9,7 @@ import os
 
 MAX_PLAYERS = 5
 MIN_PLAYERS = 3
-TIME_LIMIT = 20  # секунд
+TIME_LIMIT = 30
 
 
 class Player:
@@ -31,6 +31,8 @@ class GameSession(threading.Thread):
         self.running = True
 
     def run(self):
+        names = [p.name for p in self.players]
+        print(f"Игра началась между: {', '.join(names)}")
         random.shuffle(self.players)
 
         for p in self.players:
@@ -52,8 +54,7 @@ class GameSession(threading.Thread):
             )
 
             try:
-                msg = player.stream.get(timeout=TIME_LIMIT)
-                city = msg.city.strip().lower()
+                city = player.stream.get(timeout=TIME_LIMIT).city.strip().lower()
             except queue.Empty:
                 player.alive = False
                 player.queue.put(
@@ -75,6 +76,7 @@ class GameSession(threading.Thread):
             self.used_cities.add(city)
             self.last_letter = self.get_last_letter(city)
 
+            # уведомляем других
             for p in self.players:
                 if p != player and p.alive:
                     p.queue.put(
@@ -95,11 +97,13 @@ class GameSession(threading.Thread):
                 self.running = False
 
     def validate_city(self, city):
-        return (
-            city in self.all_cities
-            and city not in self.used_cities
-            and (not self.last_letter or city[0] == self.last_letter)
-        )
+        if city not in self.all_cities:
+            return False
+        if city in self.used_cities:
+            return False
+        if self.last_letter and city[0] != self.last_letter:
+            return False
+        return True
 
     def get_last_letter(self, city):
         for ch in reversed(city):
@@ -136,7 +140,8 @@ class GorodaService(goroda_pb2_grpc.GorodaGameServicer):
             for msg in request_iterator:
                 input_queue.put(msg)
 
-        threading.Thread(target=listen, daemon=True).start()
+        listener_thread = threading.Thread(target=listen, daemon=True)
+        listener_thread.start()
 
         while True:
             try:
@@ -150,6 +155,7 @@ class GorodaService(goroda_pb2_grpc.GorodaGameServicer):
         player = Player(name, input_queue)
         with self.lock:
             self.lobby.append(player)
+            print(f"Игрок {name} присоединился к лобби.")
 
             if len(self.lobby) >= MIN_PLAYERS:
                 session_players = self.lobby[:MAX_PLAYERS]
@@ -169,7 +175,7 @@ def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     goroda_pb2_grpc.add_GorodaGameServicer_to_server(GorodaService(), server)
     port = os.getenv("PORT", "50051")
-    server.add_insecure_port(f"[::]:{port}")
+    server.add_insecure_port(f'[::]:{port}')
     server.start()
     print(f"Сервер запущен на порту {port}")
     server.wait_for_termination()
