@@ -168,7 +168,7 @@ class GorodaService(goroda_pb2_grpc.GorodaGameServicer):
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     goroda_pb2_grpc.add_GorodaGameServicer_to_server(GorodaService(), server)
-    port = os.getenv("PORT", "50051")
+    port = os.getenv("PORT", "10000")
     server.add_insecure_port(f"[::]:{port}")
     server.start()
     print(f"Сервер запущен на порту {port}")
